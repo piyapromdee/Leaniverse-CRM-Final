@@ -398,7 +398,7 @@ const AnimatedROIGraph = ({ isVisible }: { isVisible: boolean }) => {
   )
 }
 
-// Testimonial Card
+// Testimonial Card - Fixed height for equal sizing
 const TestimonialCard = ({ quote, name, role, company, index }: {
   quote: string;
   name: string;
@@ -408,16 +408,16 @@ const TestimonialCard = ({ quote, name, role, company, index }: {
 }) => {
   const colors = ['bg-blue-500', 'bg-purple-500', 'bg-pink-500']
   return (
-    <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-lg transition-shadow">
+    <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-lg transition-shadow h-full flex flex-col">
       <div className="flex gap-1 mb-4">
         {[1,2,3,4,5].map(i => (
           <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
         ))}
       </div>
-      <Quote className="w-8 h-8 text-emerald-200 mb-2" />
-      <p className="text-gray-700 mb-6 text-base leading-relaxed">&ldquo;{quote}&rdquo;</p>
-      <div className="flex items-center gap-3">
-        <div className={`w-12 h-12 rounded-full ${colors[index % 3]} flex items-center justify-center text-white font-bold`}>
+      <Quote className="w-8 h-8 text-emerald-200 mb-2 flex-shrink-0" />
+      <p className="text-gray-700 mb-6 text-base leading-relaxed flex-grow">&ldquo;{quote}&rdquo;</p>
+      <div className="flex items-center gap-3 mt-auto">
+        <div className={`w-12 h-12 rounded-full ${colors[index % 3]} flex items-center justify-center text-white font-bold flex-shrink-0`}>
           {name.charAt(0)}
         </div>
         <div>
@@ -716,20 +716,21 @@ const SalesPage: NextPage = () => {
               <a href="#pricing" className="text-gray-300 hover:text-white transition-colors font-medium">{t.pricing}</a>
               <a href="#contact" className="text-gray-300 hover:text-white transition-colors font-medium">{t.contact}</a>
             </nav>
-            <div className="flex items-center gap-2 sm:gap-3">
-              {/* Tel Button */}
-              <a href="tel:0940261987" className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium">
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              {/* Tel Button - Icon only on mobile */}
+              <a href="tel:0940261987" className="flex items-center justify-center bg-emerald-500 hover:bg-emerald-400 text-white w-9 h-9 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-lg transition-colors text-sm font-medium">
                 <Phone className="w-4 h-4" />
-                <span className="hidden sm:inline">094-026-1987</span>
+                <span className="hidden sm:inline ml-1.5">094-026-1987</span>
               </a>
-              {/* LINE Button */}
-              <a href="https://line.me/R/ti/p/@deemmi" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-[#06C755] hover:bg-[#05b04c] text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium">
+              {/* LINE Button - Icon only on mobile */}
+              <a href="https://line.me/R/ti/p/@deemmi" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center bg-[#06C755] hover:bg-[#05b04c] text-white w-9 h-9 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-lg transition-colors text-sm font-medium">
                 <LineIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">@deemmi</span>
+                <span className="hidden sm:inline ml-1.5">@deemmi</span>
               </a>
               <LanguageSwitcher lang={lang} setLang={setLang} />
-              <a href="/auth/sign-in" className="hidden md:block">
-                <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white hover:bg-white/10">
+              {/* Login Button - Always visible */}
+              <a href="/auth/sign-in">
+                <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white hover:bg-white/10 px-2 sm:px-3">
                   {t.signIn}
                 </Button>
               </a>
