@@ -813,13 +813,13 @@ function DealsPage() {
         <Card>
           <CardContent className="p-3">
             {/* Top Row: Stats */}
-            <div className="flex items-center justify-between mb-3 pb-3 border-b">
-              <div className="flex items-center gap-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 pb-3 border-b">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-8">
                 <div className="flex items-center gap-2">
                   <div className="text-2xl font-bold">{stats.activeDeals}</div>
                   <div className="text-xs text-gray-500 uppercase">Active Deals</div>
                 </div>
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
                   <div className="flex items-center gap-2">
                     <Target className="w-4 h-4 text-green-600" />
                     <span className="text-sm font-semibold">{formatCurrency(stats.pipelineValue)}</span>
@@ -832,26 +832,27 @@ function DealsPage() {
                   </div>
                 </div>
               </div>
-              <Button onClick={() => handleOpenModal(null)} size="sm" className="h-8">
+              <Button onClick={() => handleOpenModal(null)} size="sm" className="h-8 w-full sm:w-auto">
                 <Plus className="w-3 h-3 mr-1" />
                 Add Deal
               </Button>
             </div>
 
             {/* Bottom Row: Search & Filters */}
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 flex-1">
-                <div className="relative flex-1 max-w-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1 w-full">
+                <div className="relative w-full sm:flex-1 sm:max-w-xs">
                   <Search className="absolute left-2 top-2 h-3 w-3 text-muted-foreground" />
                   <Input
                     placeholder="Search deals..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-7 h-8 text-sm"
+                    className="pl-7 h-8 text-sm w-full"
                   />
                 </div>
+                <div className="flex gap-2 w-full sm:w-auto flex-wrap">
                 <Select value={selectedChannel} onValueChange={setSelectedChannel}>
-                  <SelectTrigger className="w-[140px] h-8 text-sm">
+                  <SelectTrigger className="flex-1 sm:flex-none sm:w-[140px] h-8 text-sm">
                     <SelectValue placeholder="Channel" />
                   </SelectTrigger>
                   <SelectContent>
@@ -862,8 +863,10 @@ function DealsPage() {
                   </SelectContent>
                 </Select>
                 <DateRangePicker date={dateRange} onDateChange={setDateRange} />
+                </div>
+                <div className="flex gap-2 w-full sm:w-auto">
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-[160px] h-8 text-sm">
+                  <SelectTrigger className="flex-1 sm:flex-none sm:w-[160px] h-8 text-sm">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent>
@@ -875,7 +878,7 @@ function DealsPage() {
                   </SelectContent>
                 </Select>
                 <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'asc' | 'desc')}>
-                  <SelectTrigger className="w-[140px] h-8 text-sm">
+                  <SelectTrigger className="flex-1 sm:flex-none sm:w-[140px] h-8 text-sm">
                     <SelectValue placeholder="Order" />
                   </SelectTrigger>
                   <SelectContent>
@@ -897,6 +900,7 @@ function DealsPage() {
                     )}
                   </SelectContent>
                 </Select>
+                </div>
               </div>
               {dateRange?.from && (
                 <Button variant="outline" onClick={() => setDateRange(undefined)} size="sm" className="h-8 text-xs">

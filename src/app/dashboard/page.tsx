@@ -298,8 +298,34 @@ const DealsClosingSoonCard = ({ deals }: { deals: any[] }) => {
     </Card>
   );
 };
-const UserFilter = ({ teamMembers, selectedUserId, onUserChange }: { teamMembers: any[], selectedUserId: string, onUserChange: (userId: string) => void }) => ( <div className="flex items-center space-x-2"><Users className="h-5 w-5 text-gray-500" /><Select value={selectedUserId} onValueChange={onUserChange}><SelectTrigger className="w-[180px] bg-white"><SelectValue placeholder="Select member..." /></SelectTrigger><SelectContent><SelectItem value="all">All Members</SelectItem>{teamMembers.map(member => ( <SelectItem key={member.id} value={member.id}>{member.first_name || 'User'} {member.last_name || ''}</SelectItem> ))}</SelectContent></Select></div> );
-const ChannelFilter = ({ channels, selectedChannel, onChannelChange }: { channels: string[], selectedChannel: string, onChannelChange: (channel: string) => void }) => ( <div className="flex items-center space-x-2"><Globe className="h-5 w-5 text-gray-500" /><Select value={selectedChannel} onValueChange={onChannelChange}><SelectTrigger className="w-[180px] bg-white"><SelectValue placeholder="Select channel..." /></SelectTrigger><SelectContent><SelectItem value="all">All Channels</SelectItem>{channels.map(channel => ( <SelectItem key={channel} value={channel}>{channel}</SelectItem> ))}</SelectContent></Select></div> );
+const UserFilter = ({ teamMembers, selectedUserId, onUserChange }: { teamMembers: any[], selectedUserId: string, onUserChange: (userId: string) => void }) => (
+  <div className="flex items-center space-x-2 w-full sm:w-auto">
+    <Users className="h-5 w-5 text-gray-500 flex-shrink-0" />
+    <Select value={selectedUserId} onValueChange={onUserChange}>
+      <SelectTrigger className="w-full sm:w-[180px] bg-white">
+        <SelectValue placeholder="Select member..." />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Members</SelectItem>
+        {teamMembers.map(member => ( <SelectItem key={member.id} value={member.id}>{member.first_name || 'User'} {member.last_name || ''}</SelectItem> ))}
+      </SelectContent>
+    </Select>
+  </div>
+);
+const ChannelFilter = ({ channels, selectedChannel, onChannelChange }: { channels: string[], selectedChannel: string, onChannelChange: (channel: string) => void }) => (
+  <div className="flex items-center space-x-2 w-full sm:w-auto">
+    <Globe className="h-5 w-5 text-gray-500 flex-shrink-0" />
+    <Select value={selectedChannel} onValueChange={onChannelChange}>
+      <SelectTrigger className="w-full sm:w-[180px] bg-white">
+        <SelectValue placeholder="Select channel..." />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Channels</SelectItem>
+        {channels.map(channel => ( <SelectItem key={channel} value={channel}>{channel}</SelectItem> ))}
+      </SelectContent>
+    </Select>
+  </div>
+);
 
 // Channel Analytics Components
 const TopChannelsChart = ({ channelData, leadMagnetNames }: { 
@@ -1331,7 +1357,7 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold text-gray-900">{getDashboardTitle()}</h1>
             <p className="text-gray-600">{getDashboardSubtitle()}</p>
           </div>
-          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             {userProfile && (userProfile.role === 'owner' || userProfile.role === 'admin') && (
               <UserFilter teamMembers={teamMembers} selectedUserId={selectedUserId} onUserChange={setSelectedUserId} />
             )}

@@ -1017,7 +1017,7 @@ function TasksPage() {
 
   return (
       <div className="space-y-6 p-4 md:p-6 lg:px-12 lg:py-8 min-h-screen">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
                 <h1 className="text-2xl font-bold text-gray-900">Activities</h1>
                 <p className="text-gray-600">Manage your to-do list and sales activities</p>
@@ -1031,7 +1031,7 @@ function TasksPage() {
                         <LayoutGrid className="w-4 h-4" />
                     </Button>
                 </div>
-                <Button onClick={() => handleOpenModal(null)}>
+                <Button onClick={() => handleOpenModal(null)} className="flex-1 sm:flex-none">
                     <Plus className="w-4 h-4 mr-2" /> Add Activity
                 </Button>
             </div>
@@ -1045,19 +1045,20 @@ function TasksPage() {
           <Card onClick={() => handleStatusChange('all')} className="cursor-pointer hover:border-gray-400"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Total</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{stats.total}</div></CardContent></Card>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="relative">
+        <div className="flex flex-col gap-3">
+          <div className="relative w-full sm:w-auto">
             <CheckSquare className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search tasks..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 w-[200px]"
+              className="pl-8 w-full sm:w-[200px]"
             />
           </div>
 
+          <div className="flex flex-wrap gap-2">
           <Select value={assigneeFilter} onValueChange={(value) => setAssigneeFilter(value as 'me' | 'all')}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="flex-1 sm:flex-none sm:w-[180px]">
               <SelectValue placeholder="Assignee" />
             </SelectTrigger>
             <SelectContent>
@@ -1067,7 +1068,7 @@ function TasksPage() {
           </Select>
 
           <Select value={statusFilter} onValueChange={handleStatusChange}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+              <SelectTrigger className="flex-1 sm:flex-none sm:w-[180px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
               <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="pending">To Do</SelectItem>
@@ -1076,9 +1077,9 @@ function TasksPage() {
                   <SelectItem value="overdue">Overdue</SelectItem>
               </SelectContent>
           </Select>
-          
+
           <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Types" /></SelectTrigger>
+              <SelectTrigger className="flex-1 sm:flex-none sm:w-[180px]"><SelectValue placeholder="All Types" /></SelectTrigger>
               <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
                   {Object.entries(TASK_TYPES).map(([key, {label}]) => (
@@ -1086,9 +1087,11 @@ function TasksPage() {
                   ))}
               </SelectContent>
           </Select>
-          
+          </div>
+
+          <div className="flex flex-wrap gap-2">
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="flex-1 sm:flex-none sm:w-[140px]">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
@@ -1101,7 +1104,7 @@ function TasksPage() {
             </SelectContent>
           </Select>
           <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'asc' | 'desc')}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="flex-1 sm:flex-none sm:w-[140px]">
               <SelectValue placeholder="Order" />
             </SelectTrigger>
             <SelectContent>
@@ -1135,6 +1138,7 @@ function TasksPage() {
           </Select>
           
           <DateRangePicker date={dateRange} onDateChange={setDateRange} />
+          </div>
         </div>
 
         {viewMode === 'list' ? (
