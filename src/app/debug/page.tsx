@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,14 @@ export default function DebugPage() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const supabase = createClient()
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
+
+  const getSupabase = () => {
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient()
+    }
+    return supabaseRef.current
+  }
 
   useEffect(() => {
     checkAuth()
@@ -19,7 +26,8 @@ export default function DebugPage() {
   const checkAuth = async () => {
     try {
       console.log('Checking auth...')
-      
+      const supabase = getSupabase()
+
       // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       console.log('User data:', user)
@@ -54,7 +62,7 @@ export default function DebugPage() {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    await getSupabase().auth.signOut()
     setUser(null)
     setProfile(null)
   }
