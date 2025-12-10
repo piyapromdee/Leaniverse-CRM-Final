@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Shield } from 'lucide-react';
+import { Search, Shield, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,7 +17,11 @@ import { createClient, getUser } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import NotificationBell from '@/components/notification-bell';
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const supabase = createClient();
@@ -55,7 +59,23 @@ export function Header() {
     : user?.email?.[0]?.toUpperCase() || 'U';
 
   return (
-    <header className="bg-white border-b border-gray-200 flex items-center justify-end px-6 py-4">
+    <header className="bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-6 py-4">
+      {/* Hamburger Menu - Mobile Only */}
+      <div className="flex items-center md:hidden">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="p-2 hover:bg-gray-100"
+          onClick={onMenuClick}
+          aria-label="Open menu"
+        >
+          <Menu className="h-6 w-6 text-gray-600" />
+        </Button>
+      </div>
+
+      {/* Spacer for desktop */}
+      <div className="hidden md:block" />
+
       <div className="flex items-center space-x-4">
         <NotificationBell />
         
