@@ -3,12 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { SUPPORTED_CURRENCIES, validateCurrencyAmount } from '@/lib/currency'
+import { getStripe } from '@/lib/stripe'
 
 // Admin client with service role key
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  
+
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
@@ -16,11 +17,6 @@ function createAdminClient() {
     }
   })
 }
-
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-07-30.basil',
-})
 
 // Check if current user is admin
 async function isCurrentUserAdmin() {
@@ -137,7 +133,7 @@ export async function PUT(
           }
         }
 
-        newStripePrice = await stripe.prices.create(stripePriceData, {
+        newStripePrice = await getStripe().prices.create(stripePriceData, {
           stripeAccount: stripeConfig.stripe_account_id
         })
 
@@ -146,7 +142,7 @@ export async function PUT(
         // Deactivate old Stripe price if it exists
         if (existingPrice.stripe_price_id) {
           try {
-            await stripe.prices.update(existingPrice.stripe_price_id, {
+            await getStripe().prices.update(existingPrice.stripe_price_id, {
               active: false
             }, {
               stripeAccount: stripeConfig.stripe_account_id
@@ -250,7 +246,7 @@ export async function DELETE(
     
     if (!stripeError && stripeConfig && existingPrice.stripe_price_id) {
       try {
-        await stripe.prices.update(existingPrice.stripe_price_id, {
+        await getStripe().prices.update(existingPrice.stripe_price_id, {
           active: false
         }, {
           stripeAccount: stripeConfig.stripe_account_id

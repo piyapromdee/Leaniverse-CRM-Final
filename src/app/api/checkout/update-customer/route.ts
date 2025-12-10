@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
-
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-07-30.basil',
-})
+import { getStripe } from '@/lib/stripe'
 
 // POST - Update payment intent with customer data
 export async function POST(request: NextRequest) {
@@ -13,17 +8,19 @@ export async function POST(request: NextRequest) {
     const { paymentIntentId, customerData } = body
 
     if (!paymentIntentId || !customerData?.email) {
-      return NextResponse.json({ 
-        error: 'Payment intent ID and customer email are required' 
+      return NextResponse.json({
+        error: 'Payment intent ID and customer email are required'
       }, { status: 400 })
     }
+
+    const stripe = getStripe()
 
     // Get the payment intent
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
 
     if (!paymentIntent) {
-      return NextResponse.json({ 
-        error: 'Payment intent not found' 
+      return NextResponse.json({
+        error: 'Payment intent not found'
       }, { status: 404 })
     }
 
@@ -85,7 +82,7 @@ export async function POST(request: NextRequest) {
       email: customerData.email
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       customerId: stripeCustomerId,
       message: 'Customer data updated successfully'

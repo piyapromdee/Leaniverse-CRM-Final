@@ -1,11 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
-
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-07-30.basil',
-})
+import { getStripe } from '@/lib/stripe'
 
 // Admin client for database access
 function createAdminClient() {
@@ -122,7 +117,7 @@ export async function POST(request: NextRequest) {
     if (customerData?.email) {
       try {
         // First, check if customer already exists with this email
-        const existingCustomers = await stripe.customers.list({
+        const existingCustomers = await getStripe().customers.list({
           email: customerData.email,
           limit: 1
         })
@@ -132,7 +127,7 @@ export async function POST(request: NextRequest) {
           console.log('Found existing Stripe customer:', stripeCustomerId)
         } else {
           // Create new Stripe customer
-          const stripeCustomer = await stripe.customers.create({
+          const stripeCustomer = await getStripe().customers.create({
             email: customerData.email,
             name: `${customerData.firstName || ''} ${customerData.lastName || ''}`.trim(),
             metadata: {
@@ -178,7 +173,7 @@ export async function POST(request: NextRequest) {
       paymentIntentData.receipt_email = customerData.email
     }
 
-    const paymentIntent = await stripe.paymentIntents.create(paymentIntentData)
+    const paymentIntent = await getStripe().paymentIntents.create(paymentIntentData)
 
     const response = {
       clientSecret: paymentIntent.client_secret,

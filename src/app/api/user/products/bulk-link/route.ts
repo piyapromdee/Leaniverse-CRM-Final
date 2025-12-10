@@ -1,13 +1,14 @@
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
+import type Stripe from 'stripe'
+import { getStripe } from '@/lib/stripe'
 
 // Admin client with service role key
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  
+
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
@@ -15,11 +16,6 @@ function createAdminClient() {
     }
   })
 }
-
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-07-30.basil',
-})
 
 // Check if current user is admin
 async function isCurrentUserAdmin() {
@@ -139,7 +135,7 @@ export async function GET() {
     // Get Stripe products
     let stripeProducts: Stripe.Product[] = []
     try {
-      const stripeProductsList = await stripe.products.list({
+      const stripeProductsList = await getStripe().products.list({
         limit: 100,
         active: true
       }, {
@@ -267,7 +263,7 @@ export async function POST(request: NextRequest) {
         if (action === 'link' && stripeProductId) {
           // Link to existing Stripe product
           try {
-            stripeProduct = await stripe.products.retrieve(stripeProductId, {
+            stripeProduct = await getStripe().products.retrieve(stripeProductId, {
               stripeAccount: stripeConfig.stripe_account_id
             })
           } catch (stripeRetrieveError) {
@@ -281,7 +277,7 @@ export async function POST(request: NextRequest) {
         } else if (action === 'create') {
           // Create new Stripe product
           try {
-            stripeProduct = await stripe.products.create({
+            stripeProduct = await getStripe().products.create({
               name: product.name,
               description: product.description || undefined,
               active: product.active,
@@ -348,7 +344,7 @@ export async function POST(request: NextRequest) {
               }
             }
 
-            const stripePrice = await stripe.prices.create(stripePriceData, {
+            const stripePrice = await getStripe().prices.create(stripePriceData, {
               stripeAccount: stripeConfig.stripe_account_id
             })
 

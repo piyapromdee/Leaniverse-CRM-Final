@@ -1,13 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
+import { getStripe } from '@/lib/stripe'
 
 // Admin client with service role key
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  
+
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
@@ -15,11 +15,6 @@ function createAdminClient() {
     }
   })
 }
-
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-07-30.basil',
-})
 
 // Check if current user is admin
 async function isCurrentUserAdmin() {
@@ -159,7 +154,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const paymentLink = await stripe.paymentLinks.create(paymentLinkData, {
+    const paymentLink = await getStripe().paymentLinks.create(paymentLinkData, {
       stripeAccount: stripeConfig.stripe_account_id
     })
 

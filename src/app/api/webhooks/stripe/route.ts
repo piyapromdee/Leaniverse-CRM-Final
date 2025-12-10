@@ -2,11 +2,7 @@ import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { transactionService } from '@/lib/transaction-service'
-
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-07-30.basil',
-})
+import { getStripe } from '@/lib/stripe'
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
@@ -29,7 +25,7 @@ export async function POST(request: NextRequest) {
     // Verify webhook signature
     let event: Stripe.Event
     try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+      event = getStripe().webhooks.constructEvent(body, signature, webhookSecret)
     } catch (err) {
       console.error('Webhook signature verification failed:', err)
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
@@ -94,7 +90,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent,
     // Try to get from Stripe customer if available
     if (!customerEmail && paymentIntent.customer) {
       try {
-        const customer = await stripe.customers.retrieve(paymentIntent.customer as string)
+        const customer = await getStripe().customers.retrieve(paymentIntent.customer as string)
         if (customer && !customer.deleted) {
           customerEmail = customerEmail || customer.email || ''
           if (customer.name && (!customerFirstName || !customerLastName)) {
@@ -115,7 +111,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent,
     try {
       if (paymentIntent.payment_method) {
         // Retrieve the payment method details
-        const paymentMethod = await stripe.paymentMethods.retrieve(paymentIntent.payment_method as string)
+        const paymentMethod = await getStripe().paymentMethods.retrieve(paymentIntent.payment_method as string)
         actualPaymentMethod = paymentMethod.type
         console.log('Actual payment method used:', actualPaymentMethod)
       }

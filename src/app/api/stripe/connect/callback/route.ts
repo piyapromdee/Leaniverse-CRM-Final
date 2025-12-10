@@ -1,12 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
+import { getStripe } from '@/lib/stripe'
 
 // Admin client with service role key
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  
+
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
@@ -14,11 +14,6 @@ function createAdminClient() {
     }
   })
 }
-
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-07-30.basil',
-})
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -50,7 +45,7 @@ export async function GET(request: NextRequest) {
     const userId = stateMatch[1]
 
     // Exchange authorization code for access token
-    const response = await stripe.oauth.token({
+    const response = await getStripe().oauth.token({
       grant_type: 'authorization_code',
       code: code,
     })
@@ -65,7 +60,7 @@ export async function GET(request: NextRequest) {
     } = response
 
     // Get account details from Stripe
-    const account = await stripe.accounts.retrieve(stripe_user_id!)
+    const account = await getStripe().accounts.retrieve(stripe_user_id!)
 
     // Store the global connection in our database
     const adminClient = createAdminClient()
