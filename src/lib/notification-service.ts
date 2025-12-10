@@ -4,7 +4,14 @@ import { differenceInDays, isToday, isTomorrow, isPast } from 'date-fns'
 
 // Service to automatically generate notifications based on CRM data
 export class NotificationService {
-  private supabase = createClient()
+  private _supabase: ReturnType<typeof createClient> | null = null
+
+  private get supabase() {
+    if (!this._supabase) {
+      this._supabase = createClient()
+    }
+    return this._supabase
+  }
 
   // Check for overdue tasks and generate notifications
   async checkOverdueTasks() {
