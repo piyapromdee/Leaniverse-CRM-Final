@@ -23,7 +23,14 @@ export interface UserPurchaseData {
 }
 
 export class TransactionService {
-  private adminClient = createAdminClient()
+  private _adminClient: ReturnType<typeof createAdminClient> | null = null
+
+  private get adminClient() {
+    if (!this._adminClient) {
+      this._adminClient = createAdminClient()
+    }
+    return this._adminClient
+  }
 
   async createTransaction(data: TransactionData) {
     try {

@@ -1,17 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 
-// Admin client with service role key
+// Admin client with service role key (lazy initialization)
+let _adminClient: ReturnType<typeof createClient> | null = null
+
 function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  
-  return createClient(supabaseUrl, serviceRoleKey, {
+  if (_adminClient) return _adminClient
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL is not set')
+  }
+
+  _adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false
     }
   })
+
+  return _adminClient
 }
 
 // Check if current user is admin and not disabled
@@ -28,9 +38,10 @@ export async function getCurrentUser() {
       .select('role, is_disabled')
       .eq('id', user.id)
       .single()
-    
-    const isDisabled = profile?.is_disabled === true
-    const isAdmin = profile?.role === 'admin'
+
+    const profileData = profile as { role?: string; is_disabled?: boolean } | null
+    const isDisabled = profileData?.is_disabled === true
+    const isAdmin = profileData?.role === 'admin'
     
     return { 
       user, 
