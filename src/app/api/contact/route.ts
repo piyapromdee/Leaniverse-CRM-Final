@@ -3,17 +3,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// --- ADDED: Supabase Configuration ---
-// It's best practice to have these in your .env.local file
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// --- Lazy Supabase Configuration ---
+let _supabaseClient: ReturnType<typeof createClient> | null = null;
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  // This will prevent the function from running if the environment variables are not set
-  console.error("Supabase environment variables are not set.");
+function getSupabase() {
+  if (_supabaseClient) return _supabaseClient;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error('Supabase environment variables are not set.');
+  }
+
+  _supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey);
+  return _supabaseClient;
 }
-
-const supabase = createClient(supabaseUrl!, supabaseServiceRoleKey!);
 // --- END: Supabase Configuration ---
 
 export async function POST(request: NextRequest) {
@@ -30,20 +35,20 @@ export async function POST(request: NextRequest) {
     }
 
     // --- ADDED: Save data to Supabase ---
-    const { data: dbData, error: dbError } = await supabase
-      .from('contacts') // The table we confirmed
-      .insert([
-        {
-          fullName,
-          company,
-          email,
-          phone,
-          employee_count: employeeCount, // Map to DB column
-          main_goal: mainGoal,           // Map to DB column
-        },
-      ])
+    const { data, error: dbError } = await getSupabase()
+      .from('contacts')
+      .insert({
+        fullName,
+        company,
+        email,
+        phone,
+        employee_count: employeeCount,
+        main_goal: mainGoal,
+      } as any)
       .select()
       .single();
+
+    const dbData = data as { id: string } | null;
 
     if (dbError) {
       console.error('Error saving to Supabase:', dbError);
@@ -75,7 +80,7 @@ Submitted on: ${new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })
 
 --- Next Steps ---
 Please follow up with this lead within 24 hours.
-Database Record ID: ${dbData.id}
+Database Record ID: ${dbData?.id || 'N/A'}
 
 ---
 This is an automated notification.
@@ -91,7 +96,7 @@ This is an automated notification.
     };
 
     // --- Log the operation ---
-    console.log('✅ Lead successfully saved to Supabase. DB ID:', dbData.id);
+    console.log('✅ Lead successfully saved to Supabase. DB ID:', dbData?.id);
     console.log('✅ Preparing email notification for:', emailData.to);
 
     // In production, uncomment and use your email provider
@@ -101,7 +106,7 @@ This is an automated notification.
       { 
         success: true, 
         message: 'Form submitted successfully. We will be in touch shortly!',
-        leadId: dbData.id
+        leadId: dbData?.id
       },
       { status: 200 }
     );

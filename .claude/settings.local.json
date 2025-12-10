@@ -7,7 +7,9 @@
       "mcp__ide__getDiagnostics",
       "Bash(node:*)",
       "Bash(cat:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git push:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
