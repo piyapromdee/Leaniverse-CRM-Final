@@ -1,0 +1,1588 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { emailTemplates, processTemplate, type EmailTemplate } from '@/lib/email-templates'
+import { helpTooltips, HelpTooltip } from '@/lib/help-tooltips'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { IndustryBanner } from '@/components/ui/industry-banner'
+import { Mail, Plus, Edit, Trash2, Send, Eye, MousePointer, Users, BarChart3, Calendar, AlertCircle, CheckCircle, BookOpen, Target, FileText, Settings } from 'lucide-react'
+import dynamic from 'next/dynamic'
+
+// Dynamically import RichTextEditor to avoid SSR issues
+const RichTextEditor = dynamic(() => import('@/components/campaigns/RichTextEditor'), {
+  ssr: false,
+  loading: () => <div className="border rounded-lg p-4 min-h-[300px] flex items-center justify-center"><span className="text-gray-400">Loading editor...</span></div>
+})
+
+interface Campaign {
+  id: string
+  name: string
+  subject: string
+  content: string
+  status: string
+  scheduled_date: string | null
+  sent_date: string | null
+  recipient_count: number
+  sent_count: number
+  opened_count: number
+  clicked_count: number
+  contact_list_id: string | null
+  contact_list?: {
+    name: string
+    contact_count: number
+  }
+  metadata?: any
+  created_at: string
+  updated_at: string
+}
+
+interface ContactList {
+  id: string
+  name: string
+  contact_count: number
+  description?: string
+}
+
+export default function CampaignsPage() {
+  const router = useRouter()
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [contactLists, setContactLists] = useState<ContactList[]>([])
+  const [customTemplates, setCustomTemplates] = useState<any[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSending, setIsSending] = useState(false)
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null)
+  const [testEmailAddress, setTestEmailAddress] = useState('')
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [newCampaign, setNewCampaign] = useState({
+    name: '',
+    subject: '',
+    content: '',
+    contact_list_id: '',
+    selection_type: 'list', // 'list' or 'custom'
+    status: 'draft' // 'draft', 'scheduled', 'sent', 'cancelled'
+  })
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([])
+  const [allContacts, setAllContacts] = useState<any[]>([])
+  const [contactSearchTerm, setContactSearchTerm] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null)
+  const [templatePreview, setTemplatePreview] = useState(false)
+  const [modalTab, setModalTab] = useState<'settings' | 'recipients' | 'content'>('settings')
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [originalCampaignData, setOriginalCampaignData] = useState<string>('')
+  const [industryBenchmarks, setIndustryBenchmarks] = useState({
+    industry: 'Technology & Software',
+    email_open_rate_excellent: 25,
+    email_open_rate_good: 20,
+    email_open_rate_average: 15,
+    email_click_rate_excellent: 5,
+    email_click_rate_good: 3,
+    email_click_rate_average: 2
+  })
+
+  const supabase = createClient()
+
+  // Load industry benchmarks from database
+  const loadIndustryBenchmarks = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) return
+
+      const { data, error } = await supabase
+        .from('benchmark_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
+
+      if (data && !error) {
+        setIndustryBenchmarks({
+          industry: data.industry_name || data.industry || 'Technology & Software',
+          email_open_rate_excellent: data.email_open_rate_excellent || 25,
+          email_open_rate_good: data.email_open_rate_good || 20,
+          email_open_rate_average: data.email_open_rate_average || 15,
+          email_click_rate_excellent: data.email_click_rate_excellent || 5,
+          email_click_rate_good: data.email_click_rate_good || 3,
+          email_click_rate_average: data.email_click_rate_average || 2
+        })
+      }
+    } catch (error) {
+      console.log('Error loading industry benchmarks:', error)
+    }
+  }
+
+  // Load custom templates from database
+  const loadCustomTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('email_templates')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.log('Error loading custom templates:', error)
+        return
+      }
+      
+      setCustomTemplates(data || [])
+    } catch (error) {
+      console.log('Error loading custom templates:', error)
+    }
+  }
+
+  // Load campaigns and contact lists
+  const loadData = async (showLoading = true) => {
+    try {
+      if (showLoading) {
+        setIsLoading(true)
+      }
+
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        console.log('User not authenticated, redirecting to login...')
+        window.location.href = '/auth/sign-in'
+        return
+      }
+      
+      setCurrentUser(user)
+
+      // Load campaigns (simplified query first to debug)
+      console.log('Loading campaigns for user:', user.id)
+      
+      const { data: campaignsData, error: campaignsError } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      console.log('Campaigns query result:', { campaignsData, campaignsError })
+
+      if (campaignsError) {
+        console.log('Error loading campaigns:', campaignsError)
+        // Let's also try a basic table check
+        const { data: tableCheck, error: tableError } = await supabase
+          .from('campaigns')
+          .select('count(*)')
+        console.log('Table existence check:', { tableCheck, tableError })
+      } else {
+        console.log('Campaigns loaded successfully:', campaignsData)
+        setCampaigns(campaignsData || [])
+      }
+
+      // Load contact lists
+      console.log('Loading contact lists for user:', user.id)
+      
+      const { data: listsData, error: listsError } = await supabase
+        .from('contact_lists')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name')
+
+      console.log('Contact lists query result:', { listsData, listsError })
+
+      if (listsError) {
+        console.log('Error loading contact lists:', listsError)
+        setContactLists([])
+      } else {
+        console.log('Contact lists loaded successfully:', listsData)
+        setContactLists(listsData || [])
+      }
+      
+      // Load all contacts for custom selection
+      // First try with companies join, then fallback to simple query
+      try {
+        const { data: contactsData, error: contactsError } = await supabase
+          .from('contacts')
+          .select(`
+            id,
+            name,
+            email,
+            company_id,
+            companies (
+              name
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('name')
+        
+        if (contactsError) {
+          console.log('Contacts with companies query failed, trying simple query:', contactsError)
+          // Fallback to simple query without join
+          const { data: simpleContactsData, error: simpleError } = await supabase
+            .from('contacts')
+            .select('id, name, email, company_id')
+            .eq('user_id', user.id)
+            .order('name')
+          
+          if (!simpleError && simpleContactsData) {
+            console.log('Simple contacts query succeeded:', simpleContactsData.length, 'contacts loaded for user', user.id)
+            setAllContacts(simpleContactsData.map(c => ({ ...c, companies: null })))
+          } else {
+            console.log('Simple contacts query also failed:', simpleError)
+            console.log('User ID being queried:', user.id)
+            setAllContacts([])
+          }
+        } else if (contactsData) {
+          console.log('✅ Contacts with companies query succeeded:', contactsData.length, 'contacts loaded for user', user.email, '(' + user.id + ')')
+          // Log sample contact for debugging  
+          if (contactsData.length > 0) {
+            console.log('📧 Sample contact:', contactsData[0])
+          }
+          setAllContacts(contactsData)
+          
+          // Test Deemmi filtering immediately
+          const deemmiTest = contactsData.filter(contact => {
+            const searchLower = 'deemmi';
+            return (
+              contact.name?.toLowerCase().includes(searchLower) ||
+              contact.email?.toLowerCase().includes(searchLower) ||
+              (contact.companies && typeof contact.companies === 'object' && 'name' in contact.companies && 
+               typeof contact.companies.name === 'string' && contact.companies.name.toLowerCase().includes(searchLower))
+            );
+          });
+          console.log('🎯 Contacts matching "Deemmi":', deemmiTest.length);
+        } else {
+          console.log('❌ No contacts returned from query for user', user.id)
+          setAllContacts([])
+        }
+      } catch (err) {
+        console.log('Error loading contacts:', err)
+        setAllContacts([])
+      }
+
+      // If no contact lists exist, create default ones
+      if (!listsData || listsData.length === 0) {
+        console.log('No contact lists found, creating default ones...')
+        await createDefaultContactLists(user.id)
+        // Reload contact lists after creation
+        const { data: newListsData } = await supabase
+          .from('contact_lists')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('name')
+        
+        if (newListsData) {
+          console.log('Created default lists:', newListsData)
+          setContactLists(newListsData)
+        }
+      }
+
+    } catch (error) {
+      console.error('Error loading data:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Create default contact lists and populate with CRM contacts
+  const createDefaultContactLists = async (userId: string) => {
+    try {
+      // Create "All Contacts" list
+      const { data: allContactsList, error: listError } = await supabase
+        .from('contact_lists')
+        .insert({
+          name: 'All Contacts',
+          description: 'All contacts from CRM',
+          type: 'dynamic',
+          user_id: userId
+        })
+        .select()
+        .single()
+
+      if (listError) {
+        console.error('Error creating contact list:', listError)
+        return
+      }
+
+      // Get all contacts from CRM
+      const { data: contacts, error: contactsError } = await supabase
+        .from('contacts')
+        .select('id')
+        .eq('user_id', userId)
+
+      if (!contactsError && contacts && contacts.length > 0) {
+        // Add contacts to the list
+        const members = contacts.map(contact => ({
+          list_id: allContactsList.id,
+          contact_id: contact.id,
+          status: 'active'
+        }))
+
+        await supabase
+          .from('contact_list_members')
+          .insert(members)
+
+        // Update contact count
+        await supabase.rpc('update_contact_list_count', { 
+          list_id_param: allContactsList.id 
+        })
+      }
+
+      // Reload contact lists
+      const { data: listsData } = await supabase
+        .from('contact_lists')
+        .select('*')
+        .eq('user_id', userId)
+        .order('name')
+
+      setContactLists(listsData || [])
+
+    } catch (error) {
+      console.error('Error creating default lists:', error)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+    loadCustomTemplates()
+    loadIndustryBenchmarks()
+    
+    // Refresh campaign data every 5 seconds to catch automation updates
+    const interval = setInterval(() => {
+      loadData(false) // Don't show loading spinner on auto-refresh
+    }, 5000)
+    
+    return () => clearInterval(interval)
+  }, [])
+
+  // Filter campaigns based on search
+  const filteredCampaigns = campaigns.filter(campaign =>
+    campaign.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    campaign.subject.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  // Calculate total metrics
+  const totalMetrics = campaigns.reduce((acc, campaign) => ({
+    sent: acc.sent + campaign.sent_count,
+    opened: acc.opened + campaign.opened_count,
+    clicked: acc.clicked + campaign.clicked_count
+  }), { sent: 0, opened: 0, clicked: 0 })
+
+  const calculateOpenRate = (metrics: { sent: number, opened: number }) => {
+    return metrics.sent > 0 ? Math.round((metrics.opened / metrics.sent) * 100) : 0
+  }
+
+  const calculateClickRate = (metrics: { sent: number, clicked: number }) => {
+    return metrics.sent > 0 ? Math.round((metrics.clicked / metrics.sent) * 100) : 0
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'sent': return 'bg-green-100 text-green-800'
+      case 'draft': return 'bg-gray-100 text-gray-800'
+      case 'scheduled': return 'bg-blue-100 text-blue-800'
+      case 'sending': return 'bg-yellow-100 text-yellow-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const handleAddCampaign = () => {
+    setEditingCampaign(null)
+    setNewCampaign({
+      name: '',
+      subject: '',
+      content: '',
+      contact_list_id: '',
+      selection_type: 'list',
+      status: 'draft'
+    })
+    setSelectedContacts([])
+    setContactSearchTerm('')
+    setSelectedTemplate(null)
+    setModalTab('settings')
+    setHasUnsavedChanges(false)
+    setOriginalCampaignData('')
+    setTemplatePreview(false)
+    setIsModalOpen(true)
+  }
+
+  const handleEditCampaign = (campaign: Campaign) => {
+    setEditingCampaign(campaign)
+    const campaignData = {
+      name: campaign.name,
+      subject: campaign.subject,
+      content: campaign.content,
+      contact_list_id: campaign.contact_list_id || '',
+      selection_type: campaign.contact_list_id ? 'list' : 'custom',
+      status: campaign.status || 'draft'
+    }
+    setNewCampaign(campaignData)
+
+    // Store original data for unsaved changes detection
+    setOriginalCampaignData(JSON.stringify(campaignData))
+    setHasUnsavedChanges(false)
+
+    // If campaign has custom recipients, load them from metadata
+    if (!campaign.contact_list_id && campaign.metadata?.selected_contacts) {
+      setSelectedContacts(campaign.metadata.selected_contacts)
+    } else {
+      setSelectedContacts([])
+    }
+
+    // Try to identify the template used for this campaign
+    // Check custom templates first, then built-in templates
+    const allTemplates = [
+      ...customTemplates.map(t => ({
+        id: t.id,
+        name: t.name,
+        category: t.category,
+        content: t.content,
+        description: t.description || '',
+        thumbnail: '',
+        variables: t.variables || []
+      })),
+      ...emailTemplates
+    ]
+
+    // Try to match by content (simplified comparison)
+    const matchingTemplate = allTemplates.find(t => {
+      // Normalize content for comparison (remove whitespace variations)
+      const normalizeContent = (str: string) => str.replace(/\s+/g, ' ').trim()
+      return normalizeContent(t.content) === normalizeContent(campaign.content)
+    })
+
+    if (matchingTemplate) {
+      setSelectedTemplate(matchingTemplate)
+    } else {
+      // No matching template - it's custom content
+      setSelectedTemplate(null)
+    }
+
+    // Reset modal tab to settings when opening
+    setModalTab('settings')
+    setTemplatePreview(false)
+    setIsModalOpen(true)
+  }
+
+  const handleSaveCampaign = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        console.log('User not authenticated, redirecting to login...')
+        window.location.href = '/auth/sign-in'
+        return
+      }
+
+      // Validate that recipients are selected
+      // For editing campaigns, only validate if we're actually changing the recipients
+      if (editingCampaign) {
+        // If editing and campaign already has recipients, allow status-only changes
+        const hasExistingRecipients = editingCampaign.recipient_count && editingCampaign.recipient_count > 0
+        
+        if (!hasExistingRecipients) {
+          // Campaign has no recipients, so we need to add some
+          if (newCampaign.selection_type === 'custom' && selectedContacts.length === 0) {
+            alert('Please select at least one contact')
+            return
+          }
+          
+          if (newCampaign.selection_type === 'list' && !newCampaign.contact_list_id) {
+            alert('Please select a contact list')
+            return
+          }
+        }
+      } else {
+        // New campaign - must have recipients
+        if (newCampaign.selection_type === 'custom' && selectedContacts.length === 0) {
+          alert('Please select at least one contact')
+          return
+        }
+        
+        if (newCampaign.selection_type === 'list' && !newCampaign.contact_list_id) {
+          alert('Please select a contact list')
+          return
+        }
+      }
+
+      // Calculate recipient count based on selection type
+      let recipientCount = 0
+      if (newCampaign.selection_type === 'custom') {
+        recipientCount = selectedContacts.length
+      } else {
+        const selectedList = contactLists.find(list => list.id === newCampaign.contact_list_id)
+        recipientCount = selectedList ? selectedList.contact_count : 0
+      }
+      
+      const campaignData = {
+        name: newCampaign.name,
+        subject: newCampaign.subject,
+        content: newCampaign.content,
+        contact_list_id: newCampaign.selection_type === 'list' ? newCampaign.contact_list_id : null,
+        recipient_count: recipientCount,
+        user_id: user.id,
+        status: newCampaign.status || 'draft',
+        from_email: 'dummiandco@gmail.com',
+        from_name: 'Dummi & Co',
+        updated_at: new Date().toISOString(),
+        metadata: newCampaign.selection_type === 'custom' ? { selected_contacts: selectedContacts } : null
+      }
+
+      console.log('Saving campaign with data:', campaignData)
+
+      if (editingCampaign) {
+        const { error } = await supabase
+          .from('campaigns')
+          .update(campaignData)
+          .eq('id', editingCampaign.id)
+        
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('campaigns')
+          .insert(campaignData)
+        
+        if (error) throw error
+      }
+
+      setIsModalOpen(false)
+      loadData()
+    } catch (error) {
+      console.error('Error saving campaign:', error)
+      alert('Failed to save campaign: ' + (error as any).message)
+    }
+  }
+
+  const handleDeleteCampaign = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this campaign?')) return
+
+    try {
+      await supabase
+        .from('campaigns')
+        .delete()
+        .eq('id', id)
+
+      loadData()
+    } catch (error) {
+      console.error('Error deleting campaign:', error)
+      alert('Failed to delete campaign')
+    }
+  }
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailAddress) {
+      alert('Please enter a test email address')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/campaigns/send-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: testEmailAddress })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok) {
+        alert('Test email sent successfully! Check your inbox.')
+      } else {
+        alert(`Failed to send test email: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error sending test email:', error)
+      alert('Error sending test email. Check console for details.')
+    }
+  }
+
+  const handleSendCampaign = async (campaign: Campaign) => {
+    // Check if campaign has recipients
+    const hasCustomSelection = campaign.metadata && (campaign.metadata as any).selected_contacts?.length > 0
+    
+    if (!campaign.contact_list_id && !hasCustomSelection) {
+      alert('Please select recipients first')
+      return
+    }
+
+    // Get recipient count for confirmation
+    let recipientCount = 0
+    
+    if (hasCustomSelection) {
+      recipientCount = (campaign.metadata as any).selected_contacts.length
+    } else if (campaign.contact_list?.contact_count) {
+      recipientCount = campaign.contact_list.contact_count
+    } else {
+      recipientCount = campaign.recipient_count || 0
+    }
+    
+    if (!confirm(`Send campaign "${campaign.name}" to ${recipientCount} contacts?`)) {
+      return
+    }
+
+    try {
+      setIsSending(true)
+
+      console.log('=== STEP 1: Starting Campaign Send Process ===')
+      console.log('Campaign:', campaign)
+      console.log('Contact List ID:', campaign.contact_list_id)
+      console.log('Campaign Metadata:', campaign.metadata)
+      console.log('Has Custom Selection:', hasCustomSelection)
+      
+      // Verify campaign has recipients (either list or custom selection)
+      if (!campaign.contact_list_id && !hasCustomSelection) {
+        throw new Error('No recipients selected for this campaign')
+      }
+
+      console.log('=== STEP 2: Testing Database Access ===')
+      // Test basic database access first
+      const { data: testAuth, error: authError } = await supabase.auth.getUser()
+      console.log('Auth test:', { user: testAuth?.user?.id, authError })
+
+      console.log('=== STEP 3: Testing Contact List Members Table ===')
+      const { data: testMembers, error: testError } = await supabase
+        .from('contact_list_members')
+        .select('id, list_id, contact_id, status')
+        .limit(3)
+
+      console.log('Contact list members test:', { testMembers, testError })
+      
+      if (testError) {
+        throw new Error(`Database access failed: ${testError.message}`)
+      }
+
+      console.log('=== STEP 4: Testing Contacts Table ===')
+      const { data: testContacts, error: contactsError } = await supabase
+        .from('contacts')
+        .select('id, email, name')
+        .limit(3)
+
+      console.log('Contacts test:', { testContacts, contactsError })
+
+      console.log('=== STEP 5: Testing Specific Contact List ===')
+      if (campaign.contact_list_id) {
+        const { data: testLists, error: listError } = await supabase
+          .from('contact_lists')
+          .select('*')
+          .eq('id', campaign.contact_list_id)
+
+        console.log('Specific contact list:', { testLists, listError })
+      } else if (hasCustomSelection) {
+        console.log('Using custom selection, skipping contact list check')
+      }
+
+      console.log('=== STEP 6: Loading Recipients ===')
+      let recipients
+      let error
+      
+      // Use the hasCustomSelection variable declared at the beginning
+      if (hasCustomSelection) {
+        // Load specific contacts by IDs
+        const selectedIds = (campaign.metadata as any).selected_contacts
+        console.log('Using custom selection:', selectedIds)
+        
+        const { data: contactsData, error: contactsError } = await supabase
+          .from('contacts')
+          .select('id, email, name')
+          .in('id', selectedIds)
+        
+        recipients = contactsData?.map(c => ({
+          contact_id: c.id,
+          contacts: c
+        }))
+        error = contactsError
+      } else {
+        // Use contact list
+        console.log('Using contact list:', campaign.contact_list_id)
+        
+        const { data: listData, error: listError } = await supabase
+          .from('contact_list_members')
+          .select(`
+            contact_id,
+            contacts!inner (
+              id,
+              email,
+              name
+            )
+          `)
+          .eq('list_id', campaign.contact_list_id)
+          .eq('status', 'active')
+        
+        recipients = listData
+        error = listError
+      }
+
+      console.log('Recipients query:', { recipients, error })
+
+      if (error) {
+        console.error('Recipients query failed:', error)
+        throw new Error(`Failed to load recipients: ${error.message || JSON.stringify(error)}`)
+      }
+      
+      if (!recipients || recipients.length === 0) {
+        throw new Error('No recipients found in the selected list')
+      }
+
+      console.log('=== STEP 7: Found recipients, processing ===')
+      console.log('Recipients count:', recipients.length)
+
+      // Create campaign recipients records
+      const campaignRecipients = recipients
+        .filter((r: any) => r.contacts?.email)
+        .map((r: any) => {
+          // Split name into first and last name
+          const fullName = r.contacts?.name || ''
+          const nameParts = fullName.split(' ')
+          const firstName = nameParts[0] || ''
+          const lastName = nameParts.slice(1).join(' ') || ''
+          
+          return {
+            campaign_id: campaign.id,
+            contact_id: r.contact_id,
+            email: r.contacts!.email,
+            first_name: firstName,
+            last_name: lastName,
+            status: 'pending'
+          }
+        })
+
+      if (campaignRecipients.length === 0) {
+        alert('No valid recipients found in the selected list')
+        return
+      }
+
+      // Insert recipients
+      const { data: insertedRecipients, error: insertError } = await supabase
+        .from('campaign_recipients')
+        .insert(campaignRecipients)
+        .select()
+
+      if (insertError) {
+        throw insertError
+      }
+
+      // Send emails via API
+      console.log('Sending to API with campaign ID:', campaign.id)
+      
+      const response = await fetch('/api/campaigns/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId: campaign.id })
+      })
+      
+      console.log('API Response:', response.status, response.statusText)
+      
+      const result = await response.json()
+      console.log('API Result:', result)
+      
+      if (response.ok) {
+        alert(`Campaign sent! ${result.sent} emails sent, ${result.failed} failed.`)
+      } else {
+        console.error('API Error:', result)
+        alert(`Failed to send campaign: ${result.error || 'Unknown error'}\n\nDetails: ${result.details || 'Check console for more info'}`)
+        throw new Error(result.error || 'Failed to send campaign')
+      }
+      loadData()
+
+    } catch (error) {
+      console.error('Error sending campaign:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      alert(`Failed to send campaign: ${errorMessage}\n\nCheck console for details.`)
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6 p-4 md:p-6 lg:px-12 lg:py-8 min-h-screen">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Email Campaigns</h1>
+          <p className="text-gray-600">Create and track email campaigns to nurture leads and engage customers</p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => {
+              const email = prompt('Enter email address to test Gmail connection:')
+              if (email) {
+                setTestEmailAddress(email)
+                handleSendTestEmail()
+              }
+            }}
+            title="Verify your Gmail setup is working correctly"
+          >
+            <Mail className="w-4 h-4 mr-2" />
+            Test Gmail Setup
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={async () => {
+              const email = prompt('Enter email to preview a campaign with tracking:')
+              if (email) {
+                try {
+                  const response = await fetch('/api/test-direct-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                  })
+                  const result = await response.json()
+                  if (response.ok) {
+                    alert(`Test campaign sent!\nMessage ID: ${result.messageId}\nCheck your inbox to see how campaigns look with tracking.`)
+                  } else {
+                    alert(`Test failed: ${result.error}\nDetails: ${result.details}`)
+                    console.error('Direct test error:', result)
+                  }
+                } catch (error) {
+                  console.error('Direct test error:', error)
+                  alert('Failed to send test campaign. Check console.')
+                }
+              }
+            }}
+            title="Send a test campaign with tracking pixels to preview how it looks"
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Preview Campaign
+          </Button>
+          <Button onClick={handleAddCampaign}>
+            <Plus className="w-4 h-4 mr-2" />
+            Create Campaign
+          </Button>
+        </div>
+      </div>
+
+      {/* Industry Benchmarks Display */}
+      <IndustryBanner className="mb-6" showBenchmarks={true} />
+
+      {/* Performance Metrics with Industry Benchmarks */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="metric-card-compact border-l-4 border-blue-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex items-center space-x-1">
+              <CardTitle className="text-sm font-medium">Open Rate Performance</CardTitle>
+              <HelpTooltip content={helpTooltips.emailMetrics.openRate} />
+            </div>
+            <Eye className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{calculateOpenRate(totalMetrics)}%</div>
+            <div className="space-y-1">
+              <p className={`text-xs font-medium ${
+                calculateOpenRate(totalMetrics) >= industryBenchmarks.email_open_rate_excellent ? 'text-green-600' :
+                calculateOpenRate(totalMetrics) >= industryBenchmarks.email_open_rate_good ? 'text-blue-600' :
+                calculateOpenRate(totalMetrics) >= industryBenchmarks.email_open_rate_average ? 'text-yellow-600' : 'text-red-600'
+              }`}>
+                {calculateOpenRate(totalMetrics) >= industryBenchmarks.email_open_rate_excellent ? '🏆 Excellent' :
+                 calculateOpenRate(totalMetrics) >= industryBenchmarks.email_open_rate_good ? '✅ Good' :
+                 calculateOpenRate(totalMetrics) >= industryBenchmarks.email_open_rate_average ? '📊 Average' : '⚠️ Needs Work'}
+              </p>
+              <p className="text-xs text-gray-500">Industry: {industryBenchmarks.email_open_rate_average}-{industryBenchmarks.email_open_rate_excellent}%</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="metric-card-compact border-l-4 border-purple-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex items-center space-x-1">
+              <CardTitle className="text-sm font-medium">Click Rate Performance</CardTitle>
+              <HelpTooltip content={helpTooltips.emailMetrics.clickRate} />
+            </div>
+            <MousePointer className="h-4 w-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{calculateClickRate(totalMetrics)}%</div>
+            <div className="space-y-1">
+              <p className={`text-xs font-medium ${
+                calculateClickRate(totalMetrics) >= industryBenchmarks.email_click_rate_excellent ? 'text-green-600' :
+                calculateClickRate(totalMetrics) >= industryBenchmarks.email_click_rate_good ? 'text-blue-600' :
+                calculateClickRate(totalMetrics) >= industryBenchmarks.email_click_rate_average ? 'text-yellow-600' : 'text-red-600'
+              }`}>
+                {calculateClickRate(totalMetrics) >= industryBenchmarks.email_click_rate_excellent ? '🏆 Excellent' :
+                 calculateClickRate(totalMetrics) >= industryBenchmarks.email_click_rate_good ? '✅ Good' :
+                 calculateClickRate(totalMetrics) >= industryBenchmarks.email_click_rate_average ? '📊 Average' : '⚠️ Needs Work'}
+              </p>
+              <p className="text-xs text-gray-500">Industry: {industryBenchmarks.email_click_rate_average}-{industryBenchmarks.email_click_rate_excellent}%</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="metric-card-compact border-l-4 border-teal-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex items-center space-x-1">
+              <CardTitle className="text-sm font-medium">Engagement Score</CardTitle>
+              <HelpTooltip content={{
+                title: "Engagement Score",
+                description: "Combined metric of open rate and click rate performance",
+                calculation: "((Open Rate / 25) + (Click Rate / 5)) / 2 × 100",
+                example: "20% open rate + 4% click rate = 90% engagement score"
+              }} />
+            </div>
+            <Target className="h-4 w-4 text-teal-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-teal-600">
+              {Math.round(((calculateOpenRate(totalMetrics) / 25) + (calculateClickRate(totalMetrics) / 5)) / 2 * 100)}%
+            </div>
+            <div className="space-y-1">
+              <p className={`text-xs font-medium ${
+                Math.round(((calculateOpenRate(totalMetrics) / 25) + (calculateClickRate(totalMetrics) / 5)) / 2 * 100) >= 80 ? 'text-green-600' :
+                Math.round(((calculateOpenRate(totalMetrics) / 25) + (calculateClickRate(totalMetrics) / 5)) / 2 * 100) >= 60 ? 'text-blue-600' :
+                Math.round(((calculateOpenRate(totalMetrics) / 25) + (calculateClickRate(totalMetrics) / 5)) / 2 * 100) >= 40 ? 'text-yellow-600' : 'text-red-600'
+              }`}>
+                {Math.round(((calculateOpenRate(totalMetrics) / 25) + (calculateClickRate(totalMetrics) / 5)) / 2 * 100) >= 80 ? '🏆 Excellent' :
+                 Math.round(((calculateOpenRate(totalMetrics) / 25) + (calculateClickRate(totalMetrics) / 5)) / 2 * 100) >= 60 ? '✅ Good' :
+                 Math.round(((calculateOpenRate(totalMetrics) / 25) + (calculateClickRate(totalMetrics) / 5)) / 2 * 100) >= 40 ? '📊 Average' : '⚠️ Needs Work'}
+              </p>
+              <p className="text-xs text-gray-500">Combined metric</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="metric-card-compact border-l-4 border-green-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex items-center space-x-1">
+              <CardTitle className="text-sm font-medium">Total Reach</CardTitle>
+              <HelpTooltip content={{
+                title: "Total Reach",
+                description: "Total number of emails successfully delivered across all campaigns",
+                calculation: "SUM(sent_count) for all campaigns",
+                example: "Sent 5,000 emails across 10 campaigns = 5,000 total reach"
+              }} />
+            </div>
+            <Send className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{totalMetrics.sent.toLocaleString()}</div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-green-600">
+                📈 {campaigns.length} campaigns
+              </p>
+              <p className="text-xs text-gray-500">Emails delivered</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+
+      {/* Campaigns List */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Mail className="h-5 w-5 text-teal-600" />
+            <span>All Campaigns ({filteredCampaigns.length})</span>
+          </CardTitle>
+          <CardDescription>
+            Your email campaigns and their performance metrics
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8">Loading campaigns...</div>
+          ) : filteredCampaigns.length === 0 ? (
+            <div className="text-center py-8">
+              <Mail className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">No campaigns found</p>
+              <Button onClick={handleAddCampaign} className="mt-4">
+                Create your first campaign
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredCampaigns.map((campaign) => (
+                <div key={campaign.id} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            router.push(`/dashboard/campaigns/${campaign.id}/report`)
+                          }}
+                          className="font-medium text-gray-900 hover:text-teal-600 transition-colors hover:underline cursor-pointer"
+                        >
+                          {campaign.name}
+                        </span>
+                        <Badge className={getStatusColor(campaign.status)}>
+                          {campaign.status}
+                        </Badge>
+                        {campaign.contact_list && (
+                          <Badge variant="outline">
+                            <Users className="w-3 h-3 mr-1" />
+                            {campaign.contact_list.name}
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      <p className="text-sm text-gray-600 mb-3">{campaign.subject}</p>
+                      
+                      <div className="flex items-center space-x-6 text-sm text-gray-500">
+                        <span className="flex items-center">
+                          <Send className="w-4 h-4 mr-1" />
+                          {campaign.sent_count} sent
+                        </span>
+                        <span className="flex items-center">
+                          <Eye className="w-4 h-4 mr-1" />
+                          {campaign.opened_count} opened
+                        </span>
+                        <span className="flex items-center">
+                          <MousePointer className="w-4 h-4 mr-1" />
+                          {campaign.clicked_count} clicked
+                        </span>
+                        {campaign.sent_date && (
+                          <span className="flex items-center">
+                            <Calendar className="w-4 h-4 mr-1" />
+                            {new Date(campaign.sent_date).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      {campaign.status === 'sent' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => router.push(`/dashboard/campaigns/${campaign.id}/report`)}
+                          className="text-teal-600 hover:text-teal-700"
+                        >
+                          <BarChart3 className="w-4 h-4 mr-1" />
+                          View Report
+                        </Button>
+                      )}
+                      {campaign.status === 'draft' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSendCampaign(campaign)}
+                          disabled={isSending}
+                        >
+                          <Send className="w-4 h-4 mr-1" />
+                          Send
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditCampaign(campaign)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDeleteCampaign(campaign.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Campaign Modal */}
+      <Dialog open={isModalOpen} onOpenChange={(open) => {
+        if (!open && hasUnsavedChanges) {
+          const confirm = window.confirm('You have unsaved changes. Are you sure you want to close?')
+          if (!confirm) return
+        }
+        setIsModalOpen(open)
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingCampaign ? 'Edit Campaign' : 'Create New Campaign'}</DialogTitle>
+            <DialogDescription>
+              {editingCampaign ? 'Modify your campaign settings, recipients, and email content' : 'Design your email campaign and select recipients'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Main Tabs for Modal Sections */}
+          <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'settings' | 'recipients' | 'content')} className="w-full">
+            <TabsList className="grid w-full grid-cols-3 mb-4">
+              <TabsTrigger value="settings" className="flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Settings
+              </TabsTrigger>
+              <TabsTrigger value="recipients" className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Recipients
+              </TabsTrigger>
+              <TabsTrigger value="content" className="flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Content
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Settings Tab */}
+            <TabsContent value="settings" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="campaign-name">Campaign Name</Label>
+                <Input
+                  id="campaign-name"
+                  placeholder="e.g., Monthly Newsletter"
+                  value={newCampaign.name}
+                  onChange={(e) => {
+                    setNewCampaign({ ...newCampaign, name: e.target.value })
+                    setHasUnsavedChanges(true)
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="subject-line">Subject Line</Label>
+                <Input
+                  id="subject-line"
+                  placeholder="e.g., Check out our latest updates!"
+                  value={newCampaign.subject}
+                  onChange={(e) => {
+                    setNewCampaign({ ...newCampaign, subject: e.target.value })
+                    setHasUnsavedChanges(true)
+                  }}
+                />
+              </div>
+
+              {editingCampaign && (
+                <div className="space-y-2">
+                  <Label htmlFor="campaign-status">Campaign Status</Label>
+                  <Select
+                    value={newCampaign.status}
+                    onValueChange={(value) => {
+                      setNewCampaign({ ...newCampaign, status: value })
+                      setHasUnsavedChanges(true)
+                    }}
+                  >
+                    <SelectTrigger id="campaign-status">
+                      <SelectValue placeholder="Select campaign status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 rounded-full bg-gray-500 mr-2"></span>
+                          Draft - Can be edited and tested
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="scheduled">
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
+                          Scheduled - Ready to send
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="sent">
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+                          Sent - Campaign completed
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="cancelled">
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
+                          Cancelled - Campaign stopped
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    Note: Only 'Draft' and 'Scheduled' campaigns can accept new lead enrollments from lead magnets.
+                  </p>
+                </div>
+              )}
+
+              <div className="pt-4 flex justify-end">
+                <Button onClick={() => setModalTab('recipients')} variant="outline">
+                  Next: Recipients
+                  <Users className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Recipients Tab */}
+            <TabsContent value="recipients" className="space-y-4">
+              <div className="space-y-2">
+                <Label>Select Recipients</Label>
+                <Tabs value={newCampaign.selection_type || 'list'} onValueChange={(v) => {
+                  setNewCampaign({ ...newCampaign, selection_type: v })
+                  setHasUnsavedChanges(true)
+                }}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="list">Use Contact List</TabsTrigger>
+                  <TabsTrigger value="custom">Select Contacts</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="list" className="space-y-2">
+                  <Select
+                    value={newCampaign.contact_list_id}
+                    onValueChange={(value) => setNewCampaign({ ...newCampaign, contact_list_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a contact list" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contactLists.length === 0 ? (
+                        <SelectItem value="no-lists" disabled>
+                          No lists available
+                        </SelectItem>
+                      ) : (
+                        contactLists.map(list => {
+                          // Get tooltip info based on list name
+                          let tooltipInfo = null;
+                          if (list.name.includes('Hot Leads')) tooltipInfo = helpTooltips.contactLists.hotLeads;
+                          else if (list.name.includes('Current Clients')) tooltipInfo = helpTooltips.contactLists.currentClients;
+                          else if (list.name.includes('VIP')) tooltipInfo = helpTooltips.contactLists.vipCustomers;
+                          else if (list.name.includes('At Risk')) tooltipInfo = helpTooltips.contactLists.atRisk;
+                          else if (list.name.includes('Prospects')) tooltipInfo = helpTooltips.contactLists.prospects;
+                          else if (list.name.includes('New Signups')) tooltipInfo = helpTooltips.contactLists.newSignups;
+                          else if (list.name.includes('Engaged')) tooltipInfo = helpTooltips.contactLists.engagedSubscribers;
+                          else if (list.name.includes('Cold')) tooltipInfo = helpTooltips.contactLists.coldLeads;
+                          
+                          return (
+                            <SelectItem key={list.id} value={list.id}>
+                              <div className="flex items-center justify-between w-full">
+                                <span>{list.name} ({list.contact_count} contacts)</span>
+                                {tooltipInfo && (
+                                  <div className="ml-2 group relative">
+                                    <HelpTooltip content={tooltipInfo} />
+                                  </div>
+                                )}
+                              </div>
+                            </SelectItem>
+                          );
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    Send to a predefined contact list
+                  </p>
+                </TabsContent>
+                
+                <TabsContent value="custom" className="space-y-2">
+                  
+                  
+                  
+                  <div className="h-[200px] w-full border rounded-md p-4 overflow-y-auto">
+                    <div className="space-y-2">
+                      {allContacts.length === 0 ? (
+                        <div className="text-center text-gray-500 py-8">
+                          <p>No contacts available</p>
+                          <p className="text-xs mt-2">Loading contacts for {currentUser?.email}...</p>
+                        </div>
+                      ) : (
+                        (() => {
+                          const filteredContacts = allContacts.filter(contact => {
+                            // If no search term, show all contacts with email
+                            if (!contactSearchTerm || contactSearchTerm.trim() === '') {
+                              return contact.email;
+                            }
+                            
+                            // Search in name, email, and company name
+                            const searchLower = contactSearchTerm.toLowerCase().trim();
+                            
+                            // Check name
+                            const nameMatch = contact.name?.toLowerCase().includes(searchLower);
+                            
+                            // Check email
+                            const emailMatch = contact.email?.toLowerCase().includes(searchLower);
+                            
+                            // Check company name (handle different possible structures)
+                            let companyMatch = false;
+                            if (contact.companies) {
+                              if (typeof contact.companies === 'string') {
+                                companyMatch = contact.companies.toLowerCase().includes(searchLower);
+                              } else if (typeof contact.companies === 'object' && contact.companies !== null) {
+                                if ('name' in contact.companies && typeof contact.companies.name === 'string') {
+                                  companyMatch = contact.companies.name.toLowerCase().includes(searchLower);
+                                }
+                              }
+                            }
+                            
+                            return nameMatch || emailMatch || companyMatch;
+                          });
+
+                          if (filteredContacts.length === 0) {
+                            return (
+                              <div className="text-center text-gray-500 py-4">
+                                <p>No contacts match "{contactSearchTerm}"</p>
+                                <p className="text-xs mt-2">Try searching for name, email, or company</p>
+                              </div>
+                            );
+                          }
+
+                          return filteredContacts.map(contact => (
+                          <div key={contact.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={contact.id}
+                              checked={selectedContacts.includes(contact.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedContacts([...selectedContacts, contact.id])
+                                } else {
+                                  setSelectedContacts(selectedContacts.filter(id => id !== contact.id))
+                                }
+                              }}
+                            />
+                            <Label
+                              htmlFor={contact.id}
+                              className="text-sm font-normal cursor-pointer flex-1"
+                            >
+                              <span className="font-medium">{contact.name || 'No name'}</span>
+                              <span className="text-gray-500 ml-2">{contact.email}</span>
+                              {contact.companies?.name && (
+                                <span className="text-gray-400 ml-2">({contact.companies.name})</span>
+                              )}
+                            </Label>
+                          </div>
+                          ));
+                        })()
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Selected: {selectedContacts.length} contacts
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const emailContacts = allContacts.filter(c => c.email).map(c => c.id)
+                        setSelectedContacts(emailContacts)
+                      }}
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedContacts([])}
+                    >
+                      Clear All
+                    </Button>
+                  </div>
+                </TabsContent>
+              </Tabs>
+              </div>
+
+              <div className="pt-4 flex justify-between">
+                <Button onClick={() => setModalTab('settings')} variant="outline">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Back: Settings
+                </Button>
+                <Button onClick={() => setModalTab('content')} variant="outline">
+                  Next: Content
+                  <FileText className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Content Tab */}
+            <TabsContent value="content" className="space-y-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Email Template</Label>
+                  {selectedTemplate && (
+                    <Badge variant="outline" className="text-teal-600">
+                      Using: {selectedTemplate.name}
+                    </Badge>
+                  )}
+                  {!selectedTemplate && newCampaign.content && (
+                    <Badge variant="outline" className="text-orange-600">
+                      Custom Content
+                    </Badge>
+                  )}
+                </div>
+              
+              {/* Template Selection */}
+              <div className="space-y-4">
+                {/* Custom Templates Section */}
+                {customTemplates.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                      <Mail className="w-4 h-4 mr-2 text-teal-500" />
+                      Your Custom Templates
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {customTemplates.map((template) => (
+                        <div
+                          key={`custom-${template.id}`}
+                          onClick={() => {
+                            // Warn if content will be replaced
+                            if (newCampaign.content && newCampaign.content !== template.content) {
+                              if (!window.confirm('This will replace your current content. Continue?')) return
+                            }
+                            setSelectedTemplate({
+                              id: template.id,
+                              name: template.name,
+                              category: template.category,
+                              content: template.content,
+                              description: template.description,
+                              thumbnail: '',
+                              variables: template.variables || []
+                            })
+                            setNewCampaign({ ...newCampaign, content: template.content })
+                            setHasUnsavedChanges(true)
+                          }}
+                          className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                            selectedTemplate?.id === template.id
+                              ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-500'
+                              : 'border-gray-200 hover:border-teal-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="text-sm font-medium text-gray-900">{template.name}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {template.category} • Custom
+                          </div>
+                          {template.variables && template.variables.length > 0 && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              {template.variables.length} variable{template.variables.length !== 1 ? 's' : ''}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Built-in Templates Section */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                    <Target className="w-4 h-4 mr-2 text-blue-500" />
+                    Built-in Templates
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {emailTemplates.map((template) => (
+                      <div
+                        key={`builtin-${template.id}`}
+                        onClick={() => {
+                          // Warn if content will be replaced
+                          const processedContent = processTemplate(template.content, {
+                            logo_url: `${window.location.origin}/dummi-co-logo.png`
+                          })
+                          if (newCampaign.content && newCampaign.content !== processedContent) {
+                            if (!window.confirm('This will replace your current content. Continue?')) return
+                          }
+                          setSelectedTemplate(template)
+                          setNewCampaign({ ...newCampaign, content: processedContent })
+                          setHasUnsavedChanges(true)
+                        }}
+                        className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                          selectedTemplate?.id === template.id
+                            ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-500'
+                            : 'border-gray-200 hover:border-teal-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="text-sm font-medium text-gray-900">{template.name}</div>
+                        <div className="text-xs text-gray-500 mt-1">{template.category} • Built-in</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {selectedTemplate && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-600">
+                      Template: <span className="font-medium">{selectedTemplate.name}</span>
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setTemplatePreview(!templatePreview)}
+                    >
+                      {templatePreview ? 'Hide' : 'Show'} Preview
+                    </Button>
+                  </div>
+                  
+                  {templatePreview && (
+                    <div className="border rounded-lg overflow-hidden mb-4">
+                      <iframe
+                        srcDoc={newCampaign.content}
+                        className="w-full h-[400px]"
+                        title="Email Preview"
+                      />
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-gray-500 mb-2">
+                    Available variables: {selectedTemplate.variables.map(v => `{{${v}}}`).join(', ')}
+                  </p>
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label>Email Content</Label>
+                <RichTextEditor
+                  content={newCampaign.content}
+                  onChange={(html) => {
+                    setNewCampaign({ ...newCampaign, content: html })
+                    setHasUnsavedChanges(true)
+                  }}
+                  placeholder="Start writing your email content..."
+                />
+              </div>
+
+              {/* Preview Button */}
+              <div className="flex items-center justify-between pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setTemplatePreview(!templatePreview)}
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  {templatePreview ? 'Hide Preview' : 'Preview Email'}
+                </Button>
+              </div>
+
+              {templatePreview && (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-gray-100 px-3 py-2 border-b text-sm font-medium text-gray-600">
+                    Email Preview
+                  </div>
+                  <iframe
+                    srcDoc={newCampaign.content}
+                    className="w-full h-[400px] bg-white"
+                    title="Email Preview"
+                  />
+                </div>
+              )}
+
+              <div className="pt-4 flex justify-between">
+                <Button onClick={() => setModalTab('recipients')} variant="outline">
+                  <Users className="w-4 h-4 mr-2" />
+                  Back: Recipients
+                </Button>
+              </div>
+            </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Footer with Save/Cancel buttons - always visible */}
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => {
+              if (hasUnsavedChanges) {
+                if (!window.confirm('You have unsaved changes. Are you sure you want to cancel?')) return
+              }
+              setIsModalOpen(false)
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              handleSaveCampaign()
+              setHasUnsavedChanges(false)
+            }}>
+              {editingCampaign ? 'Save Changes' : 'Create Campaign'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
