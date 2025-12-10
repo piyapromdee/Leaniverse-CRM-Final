@@ -94,7 +94,7 @@ export default function AssignmentRequestsPage() {
       }
 
       // Create a unique hash of the data to detect changes
-      const dataHash = JSON.stringify(notifications?.map(n => ({ id: n.id, is_read: n.is_read, created_at: n.created_at })))
+      const dataHash = JSON.stringify(notifications?.map((n: DatabaseNotification) => ({ id: n.id, is_read: n.is_read, created_at: n.created_at })))
       
       // Only process if data actually changed
       if (dataHash !== lastFetchTime) {

@@ -94,7 +94,7 @@ export default function AdminSalesTeam() {
     const currentYear = new Date().getFullYear()
     const startYear = currentYear - 2
     const endYear = currentYear + 5
-    const years = []
+    const years: string[] = []
     for (let year = endYear; year >= startYear; year--) {
       years.push(year.toString())
     }

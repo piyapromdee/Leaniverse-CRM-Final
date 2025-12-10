@@ -1,9 +1,32 @@
 import { createBrowserClient } from '@supabase/ssr'
 
+// Cached client to avoid creating multiple instances
+let _browserClient: ReturnType<typeof createBrowserClient> | null = null
+
 export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  // Return cached client if available
+  if (_browserClient) return _browserClient
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  // During build/prerender, env vars might not be available
+  // Return a placeholder that will be replaced at runtime
+  if (!supabaseUrl || !supabaseAnonKey) {
+    // Check if we're in browser (runtime) vs server (build time)
+    if (typeof window !== 'undefined') {
+      throw new Error('Supabase environment variables are not set')
+    }
+    // During SSR/prerender, return a dummy that won't be used
+    return createBrowserClient(
+      'https://placeholder.supabase.co',
+      'placeholder-key'
+    )
+  }
+
+  _browserClient = createBrowserClient(
+    supabaseUrl,
+    supabaseAnonKey,
     {
       auth: {
         autoRefreshToken: true,
@@ -12,6 +35,7 @@ export function createClient() {
       }
     }
   )
+  return _browserClient
 }
 
 // Helper function to safely get user with error handling

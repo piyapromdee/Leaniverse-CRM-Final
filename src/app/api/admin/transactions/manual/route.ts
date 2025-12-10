@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create user purchase if transaction succeeded
-    let userPurchase = null
+    let userPurchase: { id: string; access_granted: boolean; access_expires_at?: string } | null = null
     if (status === 'succeeded') {
       // Calculate expiration for recurring products
       const accessExpiresAt = price.type === 'recurring' && price.interval

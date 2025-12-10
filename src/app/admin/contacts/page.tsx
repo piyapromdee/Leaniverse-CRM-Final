@@ -62,7 +62,7 @@ export default function AdminContactsOverview() {
         const oneWeekAgo = new Date()
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
 
-        const newThisWeek = (contacts || []).filter(c =>
+        const newThisWeek = (contacts || []).filter((c: { created_at: string }) =>
           new Date(c.created_at) > oneWeekAgo
         ).length
 
@@ -70,12 +70,12 @@ export default function AdminContactsOverview() {
         const thisMonth = new Date().getMonth()
         const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1
 
-        const thisMonthContacts = (contacts || []).filter(c => {
+        const thisMonthContacts = (contacts || []).filter((c: { created_at: string }) => {
           const date = new Date(c.created_at)
           return date.getMonth() === thisMonth
         }).length
 
-        const lastMonthContacts = (contacts || []).filter(c => {
+        const lastMonthContacts = (contacts || []).filter((c: { created_at: string }) => {
           const date = new Date(c.created_at)
           return date.getMonth() === lastMonth
         }).length
@@ -86,7 +86,7 @@ export default function AdminContactsOverview() {
 
         // Find top company by number of contacts
         const companyContactCounts: Record<string, number> = {}
-        ;(contacts || []).forEach(contact => {
+        ;(contacts || []).forEach((contact: { company_id?: string }) => {
           if (contact.company_id) {
             companyContactCounts[contact.company_id] = (companyContactCounts[contact.company_id] || 0) + 1
           }
@@ -95,20 +95,20 @@ export default function AdminContactsOverview() {
         const topCompanyId = Object.entries(companyContactCounts)
           .sort(([,a], [,b]) => b - a)[0]?.[0]
 
-        const topCompany = companies?.find(c => c.id === topCompanyId)?.name || 'N/A'
+        const topCompany = companies?.find((c: { id: string; name: string }) => c.id === topCompanyId)?.name || 'N/A'
 
         // Calculate Active Engagements: unique contacts with open deals OR open tasks
         const activeContactIds = new Set<string>()
 
         // Add contacts from open deals
-        ;(deals || []).forEach(deal => {
+        ;(deals || []).forEach((deal: { contact_id?: string }) => {
           if (deal.contact_id) {
             activeContactIds.add(deal.contact_id)
           }
         })
 
         // Add contacts from open tasks
-        ;(tasks || []).forEach(task => {
+        ;(tasks || []).forEach((task: { contact_id?: string }) => {
           if (task.contact_id) {
             activeContactIds.add(task.contact_id)
           }
