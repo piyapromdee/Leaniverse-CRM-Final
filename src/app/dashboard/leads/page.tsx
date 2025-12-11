@@ -1204,7 +1204,7 @@ export default function LeadsPage() {
       <div className="container mx-auto px-6 py-8">
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {[1,2,3,4].map(i => (
               <div key={i} className="h-24 bg-gray-200 rounded"></div>
             ))}
@@ -1535,17 +1535,17 @@ export default function LeadsPage() {
                     )}
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowColumnsDialog(true)}
+                  size="sm"
+                  className="h-8 px-2 flex-shrink-0"
+                  title="Manage columns"
+                >
+                  <Settings className="w-3 h-3" />
+                </Button>
                 </div>
               </div>
-              <Button 
-                variant="ghost" 
-                onClick={() => setShowColumnsDialog(true)} 
-                size="sm"
-                className="h-8 px-2"
-                title="Manage columns"
-              >
-                <Settings className="w-3 h-3" />
-              </Button>
             </div>
           </CardContent>
         </Card>

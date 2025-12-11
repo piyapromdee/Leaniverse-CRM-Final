@@ -1037,7 +1037,7 @@ function TasksPage() {
             </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           <Card onClick={() => handleStatusChange('pending')} className="cursor-pointer hover:border-blue-400"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">To Do</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{stats.pending}</div></CardContent></Card>
           <Card onClick={() => handleStatusChange('in_progress')} className="cursor-pointer hover:border-orange-400"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">In Progress</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{stats.in_progress}</div></CardContent></Card>
           <Card onClick={() => handleStatusChange('completed')} className="cursor-pointer hover:border-green-400"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Completed</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{stats.completed}</div></CardContent></Card>

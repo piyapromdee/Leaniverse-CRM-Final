@@ -1372,7 +1372,7 @@ export default function DashboardPage() {
         )}
         
         {/* KPI Cards - Compact Design */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           <NewLeadsKPIWidget />
           <KpiCard title="Active Deals" value={metrics.activeDealsCount} description="Deals in progress" icon={Briefcase} href="/dashboard/deals?status=active" colorScheme={{ header: 'bg-purple-50', text: 'text-purple-800', icon: 'text-purple-600' }} />
           <KpiCard title="Pipeline Value" value={formatCurrency(metrics.openDealsValue)} description="Active deals value" icon={Target} href="/dashboard/deals" colorScheme={{ header: 'bg-blue-50', text: 'text-blue-800', icon: 'text-blue-600' }} />

@@ -750,45 +750,47 @@ export default function LeadMagnetPage() {
         <Card>
           <CardContent className="p-3">
             {/* Top Row: Stats */}
-            <div className="flex items-center justify-between mb-3 pb-3 border-b">
-              <div className="flex items-center gap-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 pb-3 border-b">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-8">
                 <div className="flex items-center gap-2">
                   <div className="text-2xl font-bold">{stats.totalDownloads}</div>
-                  <div className="text-xs text-gray-500 uppercase">Total Downloads</div>
+                  <div className="text-xs text-gray-500 uppercase">Total<br className="sm:hidden" /> Downloads</div>
                 </div>
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3 sm:gap-6">
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                     <span className="text-sm font-semibold">{stats.leadsGenerated}</span>
-                    <span className="text-xs text-gray-500">Leads Generated</span>
+                    <span className="text-xs text-gray-500 hidden sm:inline">Leads Generated</span>
+                    <span className="text-xs text-gray-500 sm:hidden">Leads</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
                     <span className="text-sm font-semibold">{stats.activeMagnets}</span>
-                    <span className="text-xs text-gray-500">Active Magnets</span>
+                    <span className="text-xs text-gray-500 hidden sm:inline">Active Magnets</span>
+                    <span className="text-xs text-gray-500 sm:hidden">Active</span>
                   </div>
                 </div>
               </div>
-              <Button onClick={() => setShowCreateDialog(true)} size="sm" className="h-8">
+              <Button onClick={() => setShowCreateDialog(true)} size="sm" className="h-8 w-full sm:w-auto">
                 <Plus className="w-3 h-3 mr-1" />
-                Create Lead Magnet
+                Create
               </Button>
             </div>
 
             {/* Bottom Row: Search & Filters */}
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 flex-1">
-                <div className="relative flex-1 max-w-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:flex-1">
+                <div className="relative w-full sm:flex-1 sm:max-w-xs">
                   <Search className="absolute left-2 top-2 h-3 w-3 text-muted-foreground" />
                   <Input
                     placeholder="Search magnets..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-7 h-8 text-sm"
+                    className="pl-7 h-8 text-sm w-full"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[120px] h-8 text-sm">
+                  <SelectTrigger className="w-full sm:w-[120px] h-8 text-sm">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -803,7 +805,7 @@ export default function LeadMagnetPage() {
                   variant="outline"
                   onClick={() => setSearchQuery('')}
                   size="sm"
-                  className="h-8 text-xs"
+                  className="h-8 text-xs w-full sm:w-auto"
                 >
                   Clear
                 </Button>
@@ -816,7 +818,7 @@ export default function LeadMagnetPage() {
       {/* Lead Magnets Grid */}
       <Card>
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredMagnets.map(magnet => (
           <Card key={magnet.id} className={`${magnet.is_active ? 'border-green-200 bg-green-50/30' : 'border-gray-200 bg-gray-50/30'}`}>
             <CardHeader>
