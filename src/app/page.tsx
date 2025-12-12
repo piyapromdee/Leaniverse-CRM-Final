@@ -269,9 +269,9 @@ const translations = {
 // Logo - Real Image
 const Logo = () => (
   <img
-    src="/dummi-co-logo-new.jpg"
+    src="/dummi-co-primary-logo.png"
     alt="Dummi & Co"
-    className="w-10 h-10 object-contain rounded-xl"
+    className="w-10 h-10 object-contain"
   />
 )
 
